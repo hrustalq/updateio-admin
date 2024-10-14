@@ -2,7 +2,6 @@ import {
   createRouter,
   createRoute,
   createRootRoute,
-  LoaderFnContext,
 } from "@tanstack/react-router";
 import { Index } from "./routes/index";
 import { About } from "./routes/about";
@@ -13,11 +12,10 @@ import { AppsPage } from "./routes/apps";
 import { Protected } from "./routes/_protected";
 import { TablePageSkeleton } from "@/components/TablePageSkeleton";
 import { QueryClient } from "@tanstack/react-query";
-import { appsApi, gamesApi } from "./api";
 import { UsersPage } from "./routes/users";
-import { api } from "./api";
 import { GamesUpdatesPage } from "./routes/games/updates";
 import { BotsPage } from "./routes/bots";
+import { GamePage } from "./routes/games/[id]";
 
 export const rootRoute = createRootRoute({
   component: Root,
@@ -51,38 +49,6 @@ export const gamesRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: "/games",
   component: GamesPage,
-  loader: ({ context: { queryClient } }: LoaderFnContext) => {
-    return queryClient.ensureQueryData({
-      queryKey: ["games", 1],
-      queryFn: () => gamesApi.getGames({ page: 1, limit: 10 }),
-    });
-  },
-  pendingComponent: TablePageSkeleton,
-});
-
-export const appsRoute = createRoute({
-  getParentRoute: () => protectedRoute,
-  path: "/games/apps",
-  component: AppsPage,
-  loader: ({ context: { queryClient } }: LoaderFnContext) => {
-    return queryClient.ensureQueryData({
-      queryKey: ["apps", 1],
-      queryFn: () => appsApi.getApps({ page: 1, limit: 10 }),
-    });
-  },
-  pendingComponent: TablePageSkeleton,
-});
-
-export const gamesUpdatesRoute = createRoute({
-  getParentRoute: () => protectedRoute,
-  path: "/games/updates",
-  component: GamesUpdatesPage,
-  loader: ({ context: { queryClient } }: LoaderFnContext) => {
-    return queryClient.ensureQueryData({
-      queryKey: ["patchNotes", 1],
-      queryFn: () => appsApi.getApps({ page: 1, limit: 10 }),
-    });
-  },
   pendingComponent: TablePageSkeleton,
 });
 
@@ -90,9 +56,6 @@ export const usersRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: "/users/list",
   component: UsersPage,
-  loader: async () => {
-    return api.users.getUsers({ page: 1, limit: 10 });
-  },
 });
 
 export const botsRoute = createRoute({
@@ -101,14 +64,33 @@ export const botsRoute = createRoute({
   component: BotsPage,
 });
 
+export const gameRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/games/$id",
+  component: GamePage,
+});
+
+export const appsRoute = createRoute({
+  getParentRoute: () => gamesRoute,
+  path: "apps",
+  component: AppsPage,
+  pendingComponent: TablePageSkeleton,
+});
+
+export const gamesUpdatesRoute = createRoute({
+  getParentRoute: () => gamesRoute,
+  path: "updates",
+  component: GamesUpdatesPage,
+  pendingComponent: TablePageSkeleton,
+});
+
 export const routeTree = rootRoute.addChildren([
   loginRoute,
   protectedRoute.addChildren([
     indexRoute,
     aboutRoute,
-    gamesRoute,
-    gamesUpdatesRoute,
-    appsRoute,
+    gameRoute,
+    gamesRoute.addChildren([gamesUpdatesRoute, appsRoute]),
     usersRoute,
     botsRoute,
   ]),

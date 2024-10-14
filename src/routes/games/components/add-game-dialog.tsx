@@ -3,8 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
-import { gamesApi, appsApi } from "@/api";
+import $api from "@/api";
 import {
   Dialog,
   DialogContent,
@@ -33,17 +32,23 @@ import {
 } from "@/components/ui/form";
 import { CheckCircle } from "lucide-react";
 import { FileUpload } from "@/components/ui/file-upload";
-import { Game } from "@/api/games";
 import { MultiSelect } from "@/components/ui/multi-select";
 
 const formSchema = z.object({
   name: z.string().min(1, "Название игры обязательно"),
   appIds: z.array(z.string()).min(1, "Выберите хотя бы одно приложение"),
-  version: z.string().optional().default(""),
+  version: z.number().optional().default(1),
   image: z.instanceof(File).optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
+
+interface Game {
+  id: string;
+  name: string;
+  image?: string | null;
+  version?: number | null;
+}
 
 interface AddGameDialogProps {
   isOpen: boolean;
@@ -58,23 +63,19 @@ export function AddGameDialog({
 }: AddGameDialogProps) {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [showSuccessScreen, setShowSuccessScreen] = useState(false);
-  const queryClient = useQueryClient();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: initialData?.name || "",
       appIds: [],
-      version: initialData?.version || "",
+      version: initialData?.version || 0,
       image: undefined,
     },
     mode: "onChange",
   });
 
-  const { data: apps } = useQuery({
-    queryKey: ["apps"],
-    queryFn: () => appsApi.getApps({ page: 1, limit: 100 }),
-  });
+  const { data: apps } = $api.useQuery("get", "/api/apps");
 
   useEffect(() => {
     if (initialData) {
@@ -87,25 +88,31 @@ export function AddGameDialog({
     }
   }, [initialData, form]);
 
-  const createOrUpdateGameMutation = useMutation({
-    mutationFn: (values: FormValues) =>
-      initialData
-        ? gamesApi.updateGame(initialData.id, {
-            ...values,
-            version: initialData.version || undefined,
-          })
-        : gamesApi.createGame({
-            ...values,
-            version: values.version || undefined,
-          }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["games"] });
-      setShowSuccessScreen(true);
-    },
-  });
+  const createGameMutation = $api.useMutation("post", "/api/games");
+  const updateGameMutation = $api.useMutation("patch", "/api/games/{id}");
 
-  const handleSubmit = (values: FormValues) => {
-    createOrUpdateGameMutation.mutate(values);
+  const handleSubmit = async (values: FormValues) => {
+    const image = await values.image?.text();
+
+    if (initialData)
+      updateGameMutation.mutate({
+        params: {
+          path: {
+            id: initialData.id,
+          },
+        },
+        body: {
+          ...values,
+          image: image,
+        },
+      });
+    else
+      createGameMutation.mutate({
+        body: {
+          ...values,
+          image: image,
+        },
+      });
   };
 
   const handleClose = () => {
@@ -118,14 +125,16 @@ export function AddGameDialog({
 
   const resetAndClose = () => {
     form.reset();
-    createOrUpdateGameMutation.reset();
+    createGameMutation.reset();
+    updateGameMutation.reset();
     setShowSuccessScreen(false);
     onClose();
   };
 
   const handleCreateNew = () => {
     form.reset();
-    createOrUpdateGameMutation.reset();
+    createGameMutation.reset();
+    updateGameMutation.reset();
     setShowSuccessScreen(false);
   };
 
@@ -245,19 +254,21 @@ export function AddGameDialog({
                     <div className="flex justify-end">
                       <Button
                         type="submit"
-                        disabled={createOrUpdateGameMutation.isPending}
+                        disabled={
+                          createGameMutation.isPending ||
+                          updateGameMutation.isPending
+                        }
                       >
-                        {createOrUpdateGameMutation.isPending
+                        {createGameMutation.isPending
                           ? "Отправка..."
                           : initialData
                             ? "Обновить"
                             : "Создать"}
                       </Button>
                     </div>
-                    {createOrUpdateGameMutation.isError && (
+                    {createGameMutation.isError && (
                       <p className="text-red-500">
-                        Ошибка:{" "}
-                        {(createOrUpdateGameMutation.error as Error).message}
+                        Ошибка: {(createGameMutation.error as Error).message}
                       </p>
                     )}
                   </form>

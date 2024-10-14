@@ -1,6 +1,4 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { patchNotesApi, gamesApi } from "@/api";
 import { Button } from "@/components/ui/button";
 import { AddPatchNoteDialog } from "./components/add-patch-note-dialog";
 import {
@@ -19,37 +17,61 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import { PatchNote } from "@/api/patch-notes";
-import { GetPatchNotesResponse } from "@/api/patch-notes";
 import { Plus, Loader2, Pencil, Trash2 } from "lucide-react";
-import { useLoaderData } from "@tanstack/react-router";
-import { gamesUpdatesRoute } from "@/router";
 import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/toast/use-toast";
+import $api from "@/api";
+
+interface PatchNote {
+  id: string;
+  title: string;
+  content: string;
+  version?: string | null;
+  releaseDate: string;
+  gameId: string;
+  appId: string;
+}
 
 export function GamesUpdatesPage() {
   const { toast } = useToast();
-  const initialData = useLoaderData({ from: gamesUpdatesRoute.id });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
   const queryClient = useQueryClient();
 
-  const { data: patchNotesData, isLoading: isPatchNotesLoading } = useQuery<
-    GetPatchNotesResponse,
-    Error
-  >({
-    queryKey: ["patchNotes", currentPage],
-    queryFn: () =>
-      patchNotesApi.getPatchNotes({ page: currentPage, limit: 10 }),
-    initialData: currentPage === 1 ? initialData : undefined,
-  });
+  const { data: patchNotesData, isLoading: isPatchNotesLoading } =
+    $api.useQuery("get", "/api/patch-notes", {
+      queryKey: ["patchNotes", currentPage],
+    });
 
-  const { data: gamesData, isLoading: isGamesLoading } = useQuery({
-    queryKey: ["games"],
-    queryFn: () => gamesApi.getGames({ page: 1, limit: 100 }),
-  });
+  const { data: gamesData, isLoading: isGamesLoading } = $api.useQuery(
+    "get",
+    "/api/games",
+    {
+      queryKey: ["games"],
+    },
+  );
+
+  const { mutate: deletePatchNote } = $api.useMutation(
+    "delete",
+    "/api/patch-notes/{id}",
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["patchNotes"] });
+        toast({
+          variant: "default",
+          title: "Патч-нот успешно удален",
+        });
+      },
+      onError: () => {
+        toast({
+          variant: "destructive",
+          title: "Ошибка при удалении патч-нота",
+        });
+      },
+    },
+  );
 
   if (isPatchNotesLoading || isGamesLoading) {
     return (
@@ -72,20 +94,7 @@ export function GamesUpdatesPage() {
 
   const handleDelete = async (id: string) => {
     if (window.confirm("Вы уверены, что хотите удалить этот патч-нот?")) {
-      try {
-        await patchNotesApi.deletePatchNote(id);
-        queryClient.invalidateQueries({ queryKey: ["patchNotes"] });
-        toast({
-          variant: "default",
-          title: "Патч-нот успешно удален",
-        });
-      } catch (error) {
-        console.error("Error deleting patch note:", error);
-        toast({
-          variant: "destructive",
-          title: "Ошибка при удалении патч-нота",
-        });
-      }
+      deletePatchNote({ params: { path: { id } } });
     }
   };
 
@@ -104,7 +113,7 @@ export function GamesUpdatesPage() {
       </div>
       <div className="flex-1 flex flex-col gap-4">
         {patchNotesData.data.length > 0 ? (
-          patchNotesData.data.map((patchNote: PatchNote) => (
+          patchNotesData.data.map((patchNote) => (
             <Card key={patchNote.id}>
               <CardHeader>
                 <CardTitle>{patchNote.title}</CardTitle>
@@ -159,7 +168,7 @@ export function GamesUpdatesPage() {
                 onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               />
             </PaginationItem>
-            {[...Array(patchNotesData.totalPages)].map((_, index) => (
+            {[...Array(patchNotesData.pageCount)].map((_, index) => (
               <PaginationItem key={index}>
                 <PaginationLink
                   onClick={() => setCurrentPage(index + 1)}
@@ -173,7 +182,7 @@ export function GamesUpdatesPage() {
               <PaginationNext
                 onClick={() =>
                   setCurrentPage((prev) =>
-                    Math.min(prev + 1, patchNotesData.totalPages),
+                    Math.min(prev + 1, patchNotesData.pageCount),
                   )
                 }
               />

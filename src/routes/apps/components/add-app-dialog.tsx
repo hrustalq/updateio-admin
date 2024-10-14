@@ -4,7 +4,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { appsApi } from "@/api";
 import {
   Dialog,
   DialogContent,
@@ -33,7 +32,7 @@ import {
 } from "@/components/ui/form";
 import { CheckCircle } from "lucide-react";
 import { FileUpload } from "@/components/ui/file-upload";
-import { App } from "@/api/apps";
+import $api from "@/api";
 
 const formSchema = z.object({
   name: z.string().min(1, "Название приложения обязательно"),
@@ -45,7 +44,11 @@ type FormValues = z.infer<typeof formSchema>;
 interface AddAppDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  initialData?: App | null;
+  initialData?: {
+    id: string;
+    name: string;
+    image?: string | null;
+  } | null;
 }
 
 export function AddAppDialog({
@@ -75,11 +78,27 @@ export function AddAppDialog({
     }
   }, [initialData, form]);
 
+  const createAppMutation = $api.useMutation("post", "/api/apps");
+  const updateAppMutation = $api.useMutation("patch", "/api/apps/{id}");
+
   const createOrUpdateAppMutation = useMutation({
-    mutationFn: (values: FormValues) =>
-      initialData
-        ? appsApi.updateApp(initialData.id, values)
-        : appsApi.createApp(values),
+    mutationFn: async (values: FormValues) => {
+      const image = await values.image?.text();
+      if (initialData) {
+        return createAppMutation.mutate({ body: { ...values, image: image } });
+      }
+      return updateAppMutation.mutate({
+        params: {
+          path: {
+            id: initialData!.id!,
+          },
+        },
+        body: {
+          ...values,
+          image: image,
+        },
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["apps"] });
       setShowSuccessScreen(true);

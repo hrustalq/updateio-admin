@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { gamesApi } from "@/api";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { AddGameDialog } from "./components/add-game-dialog";
 import {
@@ -19,11 +18,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import { Game } from "@/api/games";
-import { GetGamesResponse } from "@/api/games";
 import { Plus, Pencil, Trash2, ExternalLink, MoreVertical } from "lucide-react";
-import { useLoaderData } from "@tanstack/react-router";
-import { gamesRoute } from "@/router";
 import { useToast } from "@/components/ui/toast/use-toast";
 import {
   DropdownMenu,
@@ -41,12 +36,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import $api from "@/api";
+
+interface Game {
+  id: string;
+  name: string;
+  image?: string | null;
+  version?: number | null;
+}
 
 export function GamesPage() {
-  const initialData = useLoaderData({ from: gamesRoute.id });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingGame, setEditingGame] = useState<Game | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
     isOpen: boolean;
     gameId: string | null;
@@ -54,14 +55,20 @@ export function GamesPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: games } = useQuery<GetGamesResponse, Error>({
-    queryKey: ["games", currentPage],
-    queryFn: () => gamesApi.getGames({ page: currentPage, limit: 10 }),
-    initialData: currentPage === 1 ? initialData : undefined,
+  const [pagination, setPagination] = useState<{ page: number; limit: number }>(
+    { page: 1, limit: 10 },
+  );
+
+  const { data: games } = $api.useQuery("get", "/api/games", {
+    params: {
+      query: {
+        page: pagination.page,
+        limit: pagination.limit,
+      },
+    },
   });
 
-  const deleteGameMutation = useMutation({
-    mutationFn: (id: string) => gamesApi.deleteGame(id),
+  const deleteGameMutation = $api.useMutation("delete", "/api/games/{id}", {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["games"] });
       toast({
@@ -72,7 +79,7 @@ export function GamesPage() {
     onError: (error) => {
       toast({
         title: "Ошибка",
-        description: `Не удалось удалить игру: ${error.message}`,
+        description: `Не удалось удалить игру: ${error}`,
         variant: "destructive",
       });
     },
@@ -89,12 +96,18 @@ export function GamesPage() {
 
   const confirmDelete = () => {
     if (deleteConfirmation.gameId) {
-      deleteGameMutation.mutate(deleteConfirmation.gameId);
+      deleteGameMutation.mutate({
+        params: {
+          path: {
+            id: deleteConfirmation.gameId,
+          },
+        },
+      });
     }
     setDeleteConfirmation({ isOpen: false, gameId: null });
   };
 
-  if (!games.data) return null;
+  if (!games?.data) return null;
 
   return (
     <main className="flex flex-col gap-4 p-4 flex-1">
@@ -125,7 +138,7 @@ export function GamesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {games.data.map((game: Game) => (
+              {games?.data.map((game) => (
                 <TableRow key={game.id}>
                   <TableCell>
                     {game.image ? (
@@ -182,19 +195,23 @@ export function GamesPage() {
           </div>
         )}
       </div>
-      {games.data && (
+      {games?.data && (
         <Pagination>
           <PaginationContent>
             <PaginationItem>
               <PaginationPrevious
-                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                onClick={() =>
+                  setPagination((prev) => ({ ...prev, page: prev.page + 1 }))
+                }
               />
             </PaginationItem>
-            {[...Array(games.totalPages)].map((_, index) => (
+            {[...Array(games.pageCount)].map((_, index) => (
               <PaginationItem key={index}>
                 <PaginationLink
-                  onClick={() => setCurrentPage(index + 1)}
-                  isActive={currentPage === index + 1}
+                  onClick={() =>
+                    setPagination((prev) => ({ ...prev, page: index + 1 }))
+                  }
+                  isActive={games.page === index + 1}
                 >
                   {index + 1}
                 </PaginationLink>
@@ -203,7 +220,7 @@ export function GamesPage() {
             <PaginationItem>
               <PaginationNext
                 onClick={() =>
-                  setCurrentPage((prev) => Math.min(prev + 1, games.totalPages))
+                  setPagination((prev) => ({ ...prev, page: prev.page + 1 }))
                 }
               />
             </PaginationItem>

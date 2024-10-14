@@ -1,13 +1,15 @@
 export * from "./types";
-export { default as authApi } from "./auth";
-export { default as usersApi } from "./users";
-export { default as gamesApi } from "./games";
-export { default as appsApi } from "./apps";
-export { default as patchNotesApi } from "./patch-notes";
+import createFetchClient from "openapi-fetch";
+import createClient from "openapi-react-query";
+import type { paths } from "@/lib/api/v1";
 
-import usersApi from "./users";
+const fetchClient = createFetchClient<paths>({
+  baseUrl: import.meta.env.VITE_API_URL,
+  credentials: "include",
+  headers: {
+    "Access-Control-Allow-Credentials": true,
+  },
+});
+const $api = createClient(fetchClient);
 
-export const api = {
-  // ... existing APIs
-  users: usersApi,
-};
+export default $api;

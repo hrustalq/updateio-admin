@@ -23,6 +23,7 @@ import {
 import { Link, Navigate, useLocation } from "@tanstack/react-router";
 import { Small } from "@/components/ui/typography";
 import { useAuth } from "@/hooks/use-auth";
+import { LoaderCircle } from "lucide-react";
 
 const loginSchema = z.object({
   username: z.string().min(1, { message: "Логин не может быть пустым!" }),
@@ -49,7 +50,10 @@ export const Login = () => {
 
   const onSubmit = async (data: LoginFormValues) => {
     try {
-      login(data);
+      login({
+        body: data,
+        headers: { "Access-Control-Allow-Credentials": true },
+      });
     } catch (err) {
       console.error("Login failed:", err);
       setError("Неверный email или пароль");
@@ -59,6 +63,13 @@ export const Login = () => {
   if (pathname === "/login" && isAuthenticated) {
     return <Navigate to="/" replace />;
   }
+
+  if (isLoggingIn)
+    return (
+      <main className="flex items-center justify-center basis-full flex-grow">
+        <LoaderCircle className="animate-spin size-12" />
+      </main>
+    );
 
   return (
     <main className="flex items-center justify-center basis-full flex-grow">

@@ -10,7 +10,7 @@ import prettierConfig from 'eslint-config-prettier'
 import react from 'eslint-plugin-react'
 
 export default tseslint.config(
-  { ignores: ['dist', 'node_modules', 'src/components/ui'] },
+  { ignores: ['dist', 'node_modules', 'src/components/ui', 'src/lib/api'] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended, prettierConfig],
     files: ['**/*.{ts,tsx}'],

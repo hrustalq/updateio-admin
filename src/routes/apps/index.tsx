@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { appsApi } from "@/api";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { AddAppDialog } from "./components/add-app-dialog";
 import {
@@ -19,11 +18,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import { App } from "@/api/apps";
-import { GetAppsResponse } from "@/api/apps";
 import { Plus, Pencil, Trash2, ExternalLink, MoreVertical } from "lucide-react";
-import { useLoaderData } from "@tanstack/react-router";
-import { appsRoute } from "@/router";
 import { useToast } from "@/components/ui/toast/use-toast";
 import {
   DropdownMenu,
@@ -41,11 +36,21 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import $api from "@/api";
+
+interface App {
+  id: string;
+  name: string;
+  image?: string | null;
+}
 
 export function AppsPage() {
-  const initialData = useLoaderData({ from: appsRoute.id });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingApp, setEditingApp] = useState<App | null>(null);
+  const [editingApp, setEditingApp] = useState<{
+    id: string;
+    name: string;
+    image?: string | null;
+  } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
     isOpen: boolean;
@@ -54,14 +59,15 @@ export function AppsPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data } = useQuery<GetAppsResponse, Error>({
-    queryKey: ["apps", currentPage],
-    queryFn: () => appsApi.getApps({ page: currentPage, limit: 10 }),
-    initialData: currentPage === 1 ? initialData : undefined,
+  const { data } = $api.useQuery("get", "/api/apps", {
+    params: {
+      query: {
+        page: currentPage,
+      },
+    },
   });
 
-  const deleteAppMutation = useMutation({
-    mutationFn: (id: string) => appsApi.deleteApp(id),
+  const deleteAppMutation = $api.useMutation("delete", "/api/apps/{id}", {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["apps"] });
       toast({
@@ -72,7 +78,7 @@ export function AppsPage() {
     onError: (error) => {
       toast({
         title: "Ошибка",
-        description: `Не удалось удалить приложение: ${error.message}`,
+        description: `Не удалось удалить приложение: ${error}`,
         variant: "destructive",
       });
     },
@@ -89,7 +95,13 @@ export function AppsPage() {
 
   const confirmDelete = () => {
     if (deleteConfirmation.appId) {
-      deleteAppMutation.mutate(deleteConfirmation.appId);
+      deleteAppMutation.mutate({
+        params: {
+          path: {
+            id: deleteConfirmation.appId,
+          },
+        },
+      });
     }
     setDeleteConfirmation({ isOpen: false, appId: null });
   };
@@ -188,7 +200,7 @@ export function AppsPage() {
                 onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               />
             </PaginationItem>
-            {[...Array(data.totalPages)].map((_, index) => (
+            {[...Array(data.pageCount)].map((_, index) => (
               <PaginationItem key={index}>
                 <PaginationLink
                   onClick={() => setCurrentPage(index + 1)}
@@ -201,7 +213,7 @@ export function AppsPage() {
             <PaginationItem>
               <PaginationNext
                 onClick={() =>
-                  setCurrentPage((prev) => Math.min(prev + 1, data.totalPages))
+                  setCurrentPage((prev) => Math.min(prev + 1, data.pageCount))
                 }
               />
             </PaginationItem>

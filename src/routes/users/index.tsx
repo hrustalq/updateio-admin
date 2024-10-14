@@ -1,8 +1,6 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { api } from "@/api";
 import { Button } from "@/components/ui/button";
-import { AddUserDialog } from "./components/add-user-dialog";
+import { EditUserDialog } from "./components/edit-user-dialog";
 import {
   Table,
   TableBody,
@@ -19,26 +17,37 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import { User } from "@/api/users";
-import { GetUsersResponse } from "@/api/users";
 import { Check, Plus, X } from "lucide-react";
-import { useLoaderData } from "@tanstack/react-router";
-import { usersRoute } from "@/router";
 import { TablePageSkeleton } from "@/components/TablePageSkeleton";
+import $api from "@/api";
+
+interface User {
+  id: string;
+  username: string;
+  firstName: string;
+  role: "ADMIN" | "USER" | "GUEST";
+}
 
 export function UsersPage() {
-  const initialData = useLoaderData({ from: usersRoute.id });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedUser, setSelectedUser] = useState<User | null>();
 
-  const { data, isLoading } = useQuery<GetUsersResponse, Error>({
-    queryKey: ["users", currentPage],
-    queryFn: () => api.users.getUsers({ page: currentPage, limit: 10 }),
-    initialData: currentPage === 1 ? initialData : undefined,
+  const { data: users, isLoading } = $api.useQuery("get", "/api/users", {
+    params: {
+      query: {
+        page: currentPage,
+      },
+    },
   });
 
+  const handleEditUser = (user: User) => {
+    setSelectedUser(user);
+    setIsDialogOpen(true);
+  };
+
   if (isLoading) return <TablePageSkeleton />;
-  if (!data) return null;
+  if (!users) return null;
 
   return (
     <main className="flex flex-col gap-4 p-4 flex-1">
@@ -54,7 +63,7 @@ export function UsersPage() {
         </Button>
       </div>
       <div className="flex-1 flex flex-col">
-        {data.data.length > 0 ? (
+        {users.data.length > 0 ? (
           <Table>
             <TableHeader>
               <TableRow>
@@ -63,10 +72,11 @@ export function UsersPage() {
                 <TableHead>Является ботом</TableHead>
                 <TableHead>Роль</TableHead>
                 <TableHead>API ключ</TableHead>
+                <TableHead>Действия</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.data.map((user: User) => (
+              {users?.data?.map((user) => (
                 <TableRow key={user.id}>
                   <TableCell>{user.firstName}</TableCell>
                   <TableCell>{user?.username}</TableCell>
@@ -79,6 +89,20 @@ export function UsersPage() {
                   </TableCell>
                   <TableCell>{user.role}</TableCell>
                   <TableCell>{user.apiKey}</TableCell>
+                  <TableCell>
+                    <Button
+                      onClick={() =>
+                        handleEditUser({
+                          id: user.id,
+                          username: user.username,
+                          firstName: user.firstName,
+                          role: user.role,
+                        })
+                      }
+                    >
+                      Редактировать
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -91,7 +115,7 @@ export function UsersPage() {
           </div>
         )}
       </div>
-      {data && (
+      {users && (
         <Pagination>
           <PaginationContent>
             <PaginationItem>
@@ -99,7 +123,7 @@ export function UsersPage() {
                 onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               />
             </PaginationItem>
-            {[...Array(data.totalPages)].map((_, index) => (
+            {[...Array(users.pageCount)].map((_, index) => (
               <PaginationItem key={index}>
                 <PaginationLink
                   onClick={() => setCurrentPage(index + 1)}
@@ -112,17 +136,23 @@ export function UsersPage() {
             <PaginationItem>
               <PaginationNext
                 onClick={() =>
-                  setCurrentPage((prev) => Math.min(prev + 1, data.totalPages))
+                  setCurrentPage((prev) => Math.min(prev + 1, users.pageCount))
                 }
               />
             </PaginationItem>
           </PaginationContent>
         </Pagination>
       )}
-      <AddUserDialog
-        isOpen={isDialogOpen}
-        onClose={() => setIsDialogOpen(false)}
-      />
+      {selectedUser && (
+        <EditUserDialog
+          isOpen={isDialogOpen}
+          onClose={() => {
+            setIsDialogOpen(false);
+            setSelectedUser(null);
+          }}
+          user={selectedUser}
+        />
+      )}
     </main>
   );
 }

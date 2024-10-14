@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
-import { patchNotesApi, gamesApi, appsApi } from "@/api";
+import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -30,7 +29,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { toast } from "sonner";
+import { useToast } from "@/components/ui/toast/use-toast";
+import $api from "@/api";
 
 const formSchema = z.object({
   title: z.string().min(1, "Заголовок обязателен"),
@@ -50,6 +50,8 @@ export function AddPatchNoteDialog({
   isOpen,
   onClose,
 }: AddPatchNoteDialogProps) {
+  const { toast } = useToast();
+
   const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
   const [selectedAppId, setSelectedAppId] = useState<string | null>(null);
@@ -66,37 +68,42 @@ export function AddPatchNoteDialog({
     },
   });
 
-  const { data: appsData } = useQuery({
+  const { data: appsData } = $api.useQuery("get", "/api/apps", {
     queryKey: ["apps"],
-    queryFn: () => appsApi.getApps({ page: 1, limit: 100 }),
   });
 
-  const { data: gamesData } = useQuery({
+  const { data: gamesData } = $api.useQuery("get", "/api/games", {
     queryKey: ["games", selectedAppId],
-    queryFn: () =>
-      gamesApi.getGames({ page: 1, limit: 100, appId: selectedAppId }),
-    enabled: !!selectedAppId,
   });
 
-  const createPatchNoteMutation = useMutation({
-    mutationFn: patchNotesApi.createPatchNote,
+  const createPatchNoteMutation = $api.useMutation("post", "/api/patch-notes", {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["patchNotes"] });
-      toast.success("Патч-нот успешно добавлен");
+      toast({
+        title: "Патч-нот успешно добавлен",
+      });
       onClose();
       form.reset();
       setSelectedAppId(null);
     },
     onError: (error) => {
       console.error("Error creating patch note:", error);
-      toast.error("Ошибка при добавлении патч-нота");
+      toast({
+        title: "Ошибка при добавлении патч-нота",
+        variant: "destructive",
+      });
     },
   });
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsLoading(true);
     try {
-      await createPatchNoteMutation.mutateAsync(values);
+      await createPatchNoteMutation.mutateAsync({
+        body: {
+          ...values,
+          releaseDate: values.releaseDate.toISOString(),
+        },
+      });
     } finally {
       setIsLoading(false);
     }

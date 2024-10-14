@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "lint:fix": "eslint --fix .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "generate:api": "openapi-typescript https://api.updateio.dev/api/app/swagger.json -o ./src/lib/api/v1.d.ts --indent 1"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -50,6 +51,8 @@
     "js-cookie": "^3.0.5",
     "lucide-react": "^0.447.0",
     "next-themes": "^0.3.0",
+    "openapi-fetch": "^0.12.2",
+    "openapi-react-query": "^0.2.0",
     "react": "^18.3.1",
     "react-day-picker": "^9.1.3",
     "react-dom": "^18.3.1",
@@ -81,6 +84,7 @@
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
     "eslint-plugin-react-refresh": "^0.4.9",
     "globals": "^15.9.0",
+    "openapi-typescript": "^7.4.1",
     "postcss": "^8.4.47",
     "prettier": "^3.3.3",
     "tailwindcss": "^3.4.13",
